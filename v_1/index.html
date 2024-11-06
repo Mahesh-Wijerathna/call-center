@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebRTC Client</title>
+</head>
+<body>
+  <h2>WebRTC Voice Call</h2>
+  <button id="startCall">Start Call</button>
+  <button id="hangupCall" disabled>Hang Up</button>
+
+  <script>
+    const startCallButton = document.getElementById("startCall");
+    const hangupCallButton = document.getElementById("hangupCall");
+
+    let localStream;
+    let peerConnection;
+    const signalingServer = new WebSocket("ws://192.168.1.118:8080");
+
+    signalingServer.onmessage = async (message) => {
+      const data = JSON.parse(message.data);
+
+      if (data.offer) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        signalingServer.send(JSON.stringify({ answer: answer }));
+      } else if (data.answer) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+      } else if (data.candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+    };
+
+    startCallButton.onclick = async () => {
+      startCallButton.disabled = true;
+      hangupCallButton.disabled = false;
+
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      peerConnection = new RTCPeerConnection();
+
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.onicecandidate = ({ candidate }) => {
+        if (candidate) {
+          signalingServer.send(JSON.stringify({ candidate: candidate }));
+        }
+      };
+
+      peerConnection.ontrack = (event) => {
+        const audio = document.createElement("audio");
+        audio.srcObject = event.streams[0];
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      signalingServer.send(JSON.stringify({ offer: offer }));
+    };
+
+    hangupCallButton.onclick = () => {
+      peerConnection.close();
+      peerConnection = null;
+      startCallButton.disabled = false;
+      hangupCallButton.disabled = true;
+    };
+  </script>
+</body>
+</html>
