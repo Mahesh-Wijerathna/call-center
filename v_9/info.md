@@ -2,7 +2,8 @@
 version python executable app 
 gui with start end status 
 trigger on whatsapp call and answer
+auto answering is implemented 
 
 
 -----new------
-auto answering is implemented 
+detect end of call 
